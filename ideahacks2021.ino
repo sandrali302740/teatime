@@ -354,15 +354,15 @@ const int buttonPin = 4;    // the number of the pushbutton pin
 const int ledPin = 5;       // the number of the LED pin
 
 int ledState = LOW;         // the current state of the output pin
-int buttonState = LOW;             // the current reading from the input pin
-int lastButtonState = LOW;   // the previous reading from the input pin
-int start = LOW;                   // to trigger the start stuff
+int buttonState = LOW;      // the current reading from the input pin
+int lastButtonState = LOW;  // the previous reading from the input pin
+int start = LOW;            // to trigger the start stuff
 
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
 unsigned long startTime = 0;         // the start time to be used as a baseline
-unsigned long hotTime = 300000;         // while its hot
-unsigned long coolTime = 30000;        // while it warm
+unsigned long hotTime = 300000;      // while its hot
+unsigned long coolTime = 30000;      // while it warm
 
 void setup() {
   Serial.begin(115200);
@@ -370,7 +370,7 @@ void setup() {
   pinMode(buttonPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
-  // set initial LED state
+  // set initial LED state to off
   digitalWrite(ledPin, ledState);
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // I2C address
@@ -396,29 +396,24 @@ void setup() {
 }
 
 void loop() {
-  // read the state of the switch into a local variable:
+  // read the state of the button into a local variable:
   int reading = digitalRead(buttonPin);
   //Serial.print(reading);
 
-  // check to see if you just pressed the button
-  // (i.e. the input went from LOW to HIGH), and you've waited long enough
-  // since the last press to ignore any noise:
+  // check to see if the button was pressed and software debouncing
 
-  // If the switch changed, due to noise or pressing:
+  // if the button changed state
   if (reading != lastButtonState) {
-    // reset the debouncing timer
+    // reset the debouncing timer to keep track of when the last change in state was
     lastDebounceTime = millis();
   }
-
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    // whatever the reading is at, it's been there for longer than the debounce
-    // delay, so take it as the actual current state:
-
-    // if the button state has changed:
+ 
+  // check if the last state change was long ago enough to where the state is consitantly high
+  if ((millis() - lastDebounceTime) > debounceDelay) { 
+    // update button state
     if (reading != buttonState) {
       buttonState = reading;
-
-      // only toggle the LED if the new button state is HIGH
+      // toggle the led and start if the new button state is HIGH
       if (buttonState == HIGH) {
         ledState = !ledState;
         start = !start;
@@ -426,19 +421,27 @@ void loop() {
     }
   }
 
-  // set the LED:
+  // set the led
   digitalWrite(ledPin, ledState);
 
-  // save the reading. Next time through the loop, it'll be the lastButtonState:
+  // reading is the next loops last state
   lastButtonState = reading;
-
-
+    
+  // code to actually implement the tea timer
+  // button press high would mean someone has started the timer, start gets set when button press is high
   if(start == HIGH){
     // start a timer
     startTime = millis();
-    // write to the display with the stuff
-    while((millis() - startTime) < hotTime){
-        //the code for hot time
+    // write to the display with the correct state of tea temperature
+    /* 
+    time ->
+    --------|------------------|------------->
+            ^                  ^
+        hot time       hot time + cold time
+      < HT       < HT + CT         > HT + CT
+    */
+    while((millis() - startTime) < hotTime){ 
+        //the display for hot time
         display.clearDisplay();
         display.drawBitmap(0, 0, image_data_fire, SCREEN_WIDTH, SCREEN_HEIGHT, 1);
         display.display();
@@ -447,7 +450,7 @@ void loop() {
       }
      display.stopscroll();
     while((millis() - startTime) < (coolTime+hotTime)){
-        // the code for lukewarm joy
+        // the display for optimal tea temperature
         display.clearDisplay();
         display.drawBitmap(0, 0, image_data_warm01, SCREEN_WIDTH, SCREEN_HEIGHT, 1);
         display.display();
@@ -458,7 +461,8 @@ void loop() {
         delay(1000);
       }
     while(((millis() - startTime) > (coolTime + hotTime)) && (millis() - startTime < (coolTime + hotTime)*1.5)){
-        // flex the ice shawty
+        // want the display to stop after a while so AND to give an end time
+        // display for when the tea is cold now
         display.clearDisplay();
         display.drawBitmap(0, 0, image_data_cold01, SCREEN_WIDTH, SCREEN_HEIGHT, 1);
         display.display();
@@ -468,6 +472,7 @@ void loop() {
         display.display();
         delay(1000);
       }
+     // when done with the timer part reset the state and display
      start = LOW;
      display.clearDisplay();
      display.setTextSize(2);
